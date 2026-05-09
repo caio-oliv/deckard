@@ -21,6 +21,20 @@ fn card_ord_by_value() {
 }
 
 #[test]
+fn zeroed_custom_card_to_normal() {
+    let card = Card::custom(0);
+
+    assert_eq!(card.to_normal(), Card::ACE_CLUB);
+}
+
+#[test]
+fn zeroed_custom_card_to_wild() {
+    let card = Card::custom(0);
+
+    assert_eq!(card.to_wild(), Card::ACE_CLUB.to_wild());
+}
+
+#[test]
 fn card_to_kind() {
     let mut card = Card::wild(Rank::Queen, Suit::Diamond);
 
@@ -28,65 +42,96 @@ fn card_to_kind() {
 
     card = card.to_kind(CardKind::Wild);
     assert!(card.is_wild());
+    assert_eq!(card.kind(), CardKind::Wild);
 
     card = card.to_normal();
-    assert!(!card.is_wild());
+    assert!(card.is_normal());
+    assert_eq!(card.kind(), CardKind::Normal);
     assert_eq!(card, Card::new(Rank::Queen, Suit::Diamond));
 
     card = card.to_kind(CardKind::Normal);
-    assert!(!card.is_wild());
+    assert!(card.is_normal());
+    assert_eq!(card.kind(), CardKind::Normal);
+
+    card = card.to_custom();
+    assert!(card.is_custom());
+    assert_eq!(card.kind(), CardKind::Custom);
+    assert_eq!(card, Card::custom(Rank::Queen | Suit::Diamond));
+
+    card = card.to_custom();
+    assert!(card.is_custom());
+    assert_eq!(card.kind(), CardKind::Custom);
 
     card = card.to_wild();
     assert!(card.is_wild());
+    assert_eq!(card.kind(), CardKind::Wild);
     assert_eq!(card, Card::wild(Rank::Queen, Suit::Diamond));
+
+    card = card.to_wild();
+    assert!(card.is_wild());
+    assert_eq!(card.kind(), CardKind::Wild);
 }
 
 #[test]
 fn card_to_suit() {
-    let mut card = Card::SEVEN_SPADE;
+    fn assert_suit_changes(mut card: Card) {
+        let kind = card.kind();
+        card = card.to_suit(Suit::Spade).to_rank(Rank::Seven);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Spade);
-    assert_eq!(card.rank(), Rank::Seven);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Spade);
+        assert_eq!(card.rank(), Rank::Seven);
 
-    card = card.to_suit(Suit::Heart);
+        card = card.to_suit(Suit::Heart);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Heart);
-    assert_eq!(card.rank(), Rank::Seven);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Heart);
+        assert_eq!(card.rank(), Rank::Seven);
 
-    card = card.to_suit(Suit::Club);
+        card = card.to_suit(Suit::Club);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Club);
-    assert_eq!(card.rank(), Rank::Seven);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Club);
+        assert_eq!(card.rank(), Rank::Seven);
 
-    card = card.to_suit(Suit::Club);
-    assert_eq!(card.suit(), Suit::Club);
+        card = card.to_suit(Suit::Club);
+        assert_eq!(card.suit(), Suit::Club);
+    }
+
+    assert_suit_changes(Card::new(Rank::Two, Suit::Diamond));
+    assert_suit_changes(Card::wild(Rank::Queen, Suit::Club));
+    assert_suit_changes(Card::custom(0));
 }
 
 #[test]
 fn card_to_rank() {
-    let mut card = Card::SEVEN_SPADE;
+    fn assert_rank_changes(mut card: Card) {
+        let kind = card.kind();
+        card = card.to_suit(Suit::Spade).to_rank(Rank::Seven);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Spade);
-    assert_eq!(card.rank(), Rank::Seven);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Spade);
+        assert_eq!(card.rank(), Rank::Seven);
 
-    card = card.to_rank(Rank::Jocker);
+        card = card.to_rank(Rank::Jocker);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Spade);
-    assert_eq!(card.rank(), Rank::Jocker);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Spade);
+        assert_eq!(card.rank(), Rank::Jocker);
 
-    card = card.to_rank(Rank::Two);
+        card = card.to_rank(Rank::Two);
 
-    assert_eq!(card.kind(), CardKind::Normal);
-    assert_eq!(card.suit(), Suit::Spade);
-    assert_eq!(card.rank(), Rank::Two);
+        assert_eq!(card.kind(), kind);
+        assert_eq!(card.suit(), Suit::Spade);
+        assert_eq!(card.rank(), Rank::Two);
 
-    card = card.to_rank(Rank::Two);
-    assert_eq!(card.rank(), Rank::Two);
+        card = card.to_rank(Rank::Two);
+        assert_eq!(card.rank(), Rank::Two);
+    }
+
+    assert_rank_changes(Card::new(Rank::Two, Suit::Diamond));
+    assert_rank_changes(Card::wild(Rank::Queen, Suit::Club));
+    assert_rank_changes(Card::custom(0));
 }
 
 #[test]

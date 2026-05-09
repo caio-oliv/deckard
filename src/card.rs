@@ -17,7 +17,7 @@ pub enum Suit {
 }
 
 impl Suit {
-    const MASK: u8 = 0b0011_0000;
+    pub const MASK: u8 = 0b0011_0000;
 
     pub const MIN: Suit = Suit::Club;
     pub const MAX: Suit = Suit::Spade;
@@ -32,6 +32,16 @@ impl Suit {
 
     pub const fn to_u8(self) -> u8 {
         self as u8
+    }
+
+    pub const fn from_value(value: u8) -> Option<Self> {
+        match value {
+            0b0000_0000 => Some(Self::Club),
+            0b0001_0000 => Some(Self::Diamond),
+            0b0010_0000 => Some(Self::Heart),
+            0b0011_0000 => Some(Self::Spade),
+            _ => None,
+        }
     }
 
     pub const fn as_char(self) -> char {
@@ -86,9 +96,10 @@ impl Suit {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 #[repr(u8)]
 pub enum Rank {
+    #[default]
     Ace = 1,
     Two = 2,
     Three = 3,
@@ -102,11 +113,11 @@ pub enum Rank {
     Jack = 11,
     Queen = 12,
     King = 13,
-    Jocker = 0b1111,
+    Jocker = 14,
 }
 
 impl Rank {
-    const MASK: u8 = 0b0000_1111;
+    pub const MASK: u8 = 0b0000_1111;
 
     pub const MIN: Rank = Rank::Ace;
     pub const MAX: Rank = Rank::Jocker;
@@ -164,21 +175,11 @@ impl Rank {
     }
 
     pub const fn from_value(value: u8) -> Option<Self> {
-        match value {
-            1 => Some(Rank::Ace),
-            2 => Some(Rank::Two),
-            3 => Some(Rank::Three),
-            4 => Some(Rank::Four),
-            5 => Some(Rank::Five),
-            6 => Some(Rank::Six),
-            7 => Some(Rank::Seven),
-            8 => Some(Rank::Eight),
-            9 => Some(Rank::Nine),
-            10 => Some(Rank::Ten),
-            11 => Some(Rank::Jack),
-            12 => Some(Rank::Queen),
-            13 => Some(Rank::King),
-            _ => None,
+        if value >= Rank::Ace.to_u8() && value <= Rank::Jocker.to_u8() {
+            // SAFETY: value is a variant of Rank
+            Some(unsafe { core::mem::transmute::<u8, Rank>(value) })
+        } else {
+            None
         }
     }
 
@@ -301,6 +302,7 @@ pub enum CardKind {
     #[default]
     Normal = 0,
     Wild = Card::WILD_MASK,
+    Custom = Card::CUSTOM_MASK,
 }
 
 impl CardKind {
@@ -313,14 +315,20 @@ impl CardKind {
 pub struct Card(NonZeroU8);
 
 impl Card {
-    const WILD_MASK: u8 = 0b1000_0000;
+    pub const WILD_MASK: u8 = 0b0100_0000;
+    pub const CUSTOM_MASK: u8 = 0b1000_0000;
 
-    pub const MIN: Card = Card::new(Rank::MIN, Suit::MIN);
-    pub const MAX: Card = Card::wild(Rank::MAX, Suit::MAX);
+    pub const SPECIAL_MASK: u8 = Self::WILD_MASK | Self::CUSTOM_MASK;
+
+    pub const NORMAL_MIN: Card = Card::new(Rank::MIN, Suit::MIN);
+    pub const NORMAL_MAX: Card = Card::new(Rank::MAX, Suit::MAX);
+
+    pub const WILD_MIN: Card = Card::wild(Rank::MAX, Suit::MAX);
+    pub const WILD_MAX: Card = Card::wild(Rank::MAX, Suit::MAX);
 
     pub const STANDARD_COUNT: usize = 52;
 
-    pub const WILD: Card = Card::MAX;
+    pub const WILD: Card = Card::WILD_MAX;
 
     pub const WILD_SYMBOL: u8 = b'*';
     pub const WILD_SYMBOL_CHAR: char = '*';
@@ -343,6 +351,14 @@ impl Card {
         )
     }
 
+    pub const fn custom(value: u8) -> Self {
+        Self(
+            // SAFETY: (CUSTOM_MASK | value) will always produce a non-zero u8
+            // since CUSTOM_MASK is non-zero
+            unsafe { NonZeroU8::new_unchecked(Self::CUSTOM_MASK | value) },
+        )
+    }
+
     pub const fn new_kind(kind: CardKind, rank: Rank, suit: Suit) -> Self {
         Self(
             // SAFETY: (kind | rank | suit) always produces a non-zero u8
@@ -356,45 +372,69 @@ impl Card {
     }
 
     pub const fn rank(self) -> Rank {
-        // SAFETY: Card is composed by a (rank | suit), so (Rank::MASK & card) always
-        // get a valid Rank variant
-        unsafe { core::mem::transmute(self.0.get() & Rank::MASK) }
+        let rank_value = self.0.get() & Rank::MASK;
+        if rank_value == 0 || rank_value == 15 {
+            Rank::Ace
+        } else {
+            // SAFETY: rank_value is a valid Rank variant
+            unsafe { core::mem::transmute::<u8, Rank>(rank_value) }
+        }
     }
 
     pub const fn kind(self) -> CardKind {
+        if self.is_custom() {
+            return CardKind::Custom;
+        }
         // SAFETY: WILD_MASK only contains the left most bit set, so any bitand
         // operation with u8 will produce either 0 xor WILD_MASK, which is the
         // bit pattern of CardKind
         unsafe { core::mem::transmute(self.0.get() & Card::WILD_MASK) }
     }
 
+    pub const fn is_custom(self) -> bool {
+        (self.0.get() & Self::CUSTOM_MASK) != 0
+    }
+
     pub const fn is_wild(self) -> bool {
-        (self.0.get() & Card::WILD_MASK) != 0
+        (self.0.get() & Self::SPECIAL_MASK) == Card::WILD_MASK
     }
 
     pub const fn is_normal(self) -> bool {
-        (self.0.get() & Card::WILD_MASK) == 0
+        (self.0.get() & Self::SPECIAL_MASK) == 0
+    }
+
+    pub const fn get_custom(self) -> Option<NonZeroU8> {
+        if self.is_custom() { Some(self.0) } else { None }
+    }
+
+    pub const fn to_custom(self) -> Self {
+        Self(
+            // SAFETY: (CUSTOM_MASK | u8) always produces a non-zero u8
+            unsafe { NonZeroU8::new_unchecked(Self::CUSTOM_MASK | self.0.get()) },
+        )
     }
 
     /// Converts self to a will card
     pub const fn to_wild(self) -> Self {
-        Self(
-            // SAFETY: (WILD_MASK | u8) always produces a non-zero u8
-            unsafe { NonZeroU8::new_unchecked(Self::WILD_MASK | self.0.get()) },
-        )
+        let normal = self.to_normal().0.get();
+        // SAFETY: normal is non-zero
+        Self(unsafe { NonZeroU8::new_unchecked(Self::WILD_MASK | normal) })
     }
 
     pub const fn to_normal(self) -> Self {
-        Self(
-            // SAFETY: (u8 & !WILD_MASK) always produces a non-zero u8
-            unsafe { NonZeroU8::new_unchecked(self.0.get() & !Self::WILD_MASK) },
-        )
+        let mut normal = self.0.get() & !Self::SPECIAL_MASK;
+        if normal == 0 {
+            normal = normal | Rank::Ace.to_u8();
+        }
+        // SAFETY: normal is non-zero
+        Self(unsafe { NonZeroU8::new_unchecked(normal) })
     }
 
     pub const fn to_kind(self, kind: CardKind) -> Self {
         match kind {
             CardKind::Normal => self.to_normal(),
             CardKind::Wild => self.to_wild(),
+            CardKind::Custom => self.to_custom(),
         }
     }
 
@@ -425,7 +465,7 @@ impl Card {
 
         let first = match (remain.first().copied(), kind) {
             (None, CardKind::Wild) => return Ok(Card::WILD),
-            (None, CardKind::Normal) => return Err(ParseCardError::Length),
+            (None, _) => return Err(ParseCardError::Length),
             (Some(by), _) => by,
         };
 
