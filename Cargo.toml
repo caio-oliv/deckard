@@ -1,7 +1,14 @@
 [package]
 name = "deckard"
-version = "0.1.0"
+description = "A crate to represent and manipulate standard playing cards"
+authors = ["Caio Oliveira <caio.vsoliveira23@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/caio-oliv/deckard"
+categories = ["games", "no-std"]
+keywords = ["card", "deck"]
+rust-version = "1.90"
 edition = "2024"
+version = "0.1.0"
 
 [features]
 default = []
